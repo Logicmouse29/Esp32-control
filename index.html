@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Camera Trigger</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
+
+    :root {
+      --bg: #111210;
+      --surface: #1a1c19;
+      --border: #2a2d28;
+      --text: #d4d9cf;
+      --dim: #555a50;
+      --shutter: #e8e0d0;
+      --shutter-active: #ffffff;
+      --burst: #c8a020;
+      --burst-active: #ffc93c;
+      --burst-glow: rgba(255, 201, 60, 0.3);
+      --danger: #c0392b;
+      --ok: #5a8a50;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* ── GRAIN OVERLAY ─────────────────────────────────────── */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-size: 200px 200px;
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0.6;
+    }
+
+    /* ── LAYOUT ─────────────────────────────────────────────── */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+    }
+
+    /* ── LOGIN ──────────────────────────────────────────────── */
+    #login-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 32px 28px;
+      gap: 0;
+    }
+
+    .brand {
+      margin-bottom: 48px;
+    }
+
+    .brand-eye {
+      width: 48px;
+      height: 48px;
+      border: 2px solid var(--border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .brand-eye::before {
+      content: '';
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--shutter);
+    }
+
+    .brand h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 36px;
+      letter-spacing: 3px;
+      color: var(--shutter);
+      line-height: 1;
+    }
+
+    .brand p {
+      font-size: 11px;
+      color: var(--dim);
+      letter-spacing: 2px;
+      margin-top: 4px;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 10px;
+      color: var(--dim);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .field input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 15px;
+      padding: 14px 16px;
+      outline: none;
+      border-radius: 2px;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+
+    .field input:focus {
+      border-color: var(--shutter);
+    }
+
+    .btn-login {
+      width: 100%;
+      background: var(--shutter);
+      border: none;
+      color: var(--bg);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 20px;
+      letter-spacing: 4px;
+      padding: 16px;
+      cursor: pointer;
+      margin-top: 8px;
+      border-radius: 2px;
+      transition: opacity 0.15s;
+      -webkit-appearance: none;
+    }
+
+    .btn-login:active { opacity: 0.8; }
+
+    .login-msg {
+      font-size: 11px;
+      text-align: center;
+      margin-top: 12px;
+      min-height: 16px;
+      letter-spacing: 1px;
+    }
+
+    .login-msg.error { color: var(--danger); }
+    .login-msg.info  { color: var(--dim); }
+
+    /* ── CONTROL VIEW ───────────────────────────────────────── */
+    #ctrl-view {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      height: 100vh;
+      height: 100dvh;
+    }
+
+    /* Top bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .conn-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 6px var(--ok);
+    }
+
+    .topbar-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 20px;
+      letter-spacing: 2px;
+      color: var(--shutter);
+    }
+
+    .logout-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--dim);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      padding: 6px 10px;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+
+    /* Status strip */
+    .status-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .status-strip .label {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--dim);
+    }
+
+    .status-strip .val {
+      font-size: 12px;
+      letter-spacing: 1px;
+    }
+
+    .status-strip .val.on  { color: var(--burst-active); }
+    .status-strip .val.off { color: var(--dim); }
+
+    /* Main buttons area */
+    .controls {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 20px;
+      gap: 16px;
+      overflow: hidden;
+    }
+
+    /* ── SHUTTER BUTTON ─────────────────────────────────────── */
+    .shutter-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      flex: 1.6;
+    }
+
+    .shutter-label {
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+
+    .shutter-btn {
+      flex: 1;
+      width: 100%;
+      background: var(--surface);
+      border: 2px solid #3a3d38;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: border-color 0.08s, background 0.08s;
+      position: relative;
+      overflow: hidden;
+      -webkit-appearance: none;
+      touch-action: manipulation;
+    }
+
+    .shutter-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 50%, rgba(232,224,208,0.08) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.08s;
+    }
+
+    .shutter-btn:active::before,
+    .shutter-btn.firing::before {
+      opacity: 1;
+    }
+
+    .shutter-btn:active,
+    .shutter-btn.firing {
+      border-color: var(--shutter-active);
+      background: #222420;
+    }
+
+    .shutter-btn.disabled {
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
+    .shutter-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 3px solid #4a4d48;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.08s;
+      position: relative;
+    }
+
+    .shutter-btn:active .shutter-icon,
+    .shutter-btn.firing .shutter-icon {
+      border-color: var(--shutter-active);
+    }
+
+    .shutter-icon::after {
+      content: '';
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #3a3d38;
+      transition: background 0.08s;
+    }
+
+    .shutter-btn:active .shutter-icon::after,
+    .shutter-btn.firing .shutter-icon::after {
+      background: var(--shutter-active);
+    }
+
+    .shutter-text {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 18px;
+      letter-spacing: 3px;
+      color: var(--dim);
+      transition: color 0.08s;
+    }
+
+    .shutter-btn:active .shutter-text,
+    .shutter-btn.firing .shutter-text {
+      color: var(--shutter-active);
+    }
+
+    /* ── BURST TOGGLE ───────────────────────────────────────── */
+    .burst-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .burst-label {
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+
+    .burst-btn {
+      flex: 1;
+      width: 100%;
+      background: var(--surface);
+      border: 2px solid #3a3d38;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+      -webkit-appearance: none;
+      touch-action: manipulation;
+    }
+
+    .burst-btn.active {
+      border-color: var(--burst-active);
+      background: #1e1c10;
+      box-shadow: 0 0 32px var(--burst-glow) inset;
+    }
+
+    .burst-btn.disabled {
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
+    /* Pulsing ring when burst is active */
+    .burst-btn.active::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border: 2px solid var(--burst-active);
+      border-radius: 6px;
+      animation: pulse-ring 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse-ring {
+      0%   { opacity: 0.8; }
+      50%  { opacity: 0.2; }
+      100% { opacity: 0.8; }
+    }
+
+    .burst-dots {
+      display: flex;
+      gap: 5px;
+    }
+
+    .burst-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #3a3d38;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .burst-btn.active .burst-dot {
+      background: var(--burst-active);
+      box-shadow: 0 0 6px var(--burst-active);
+    }
+
+    .burst-btn.active .burst-dot:nth-child(1) { animation: blink 1.2s 0s infinite; }
+    .burst-btn.active .burst-dot:nth-child(2) { animation: blink 1.2s 0.3s infinite; }
+    .burst-btn.active .burst-dot:nth-child(3) { animation: blink 1.2s 0.6s infinite; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .burst-text {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 18px;
+      letter-spacing: 3px;
+      color: var(--dim);
+      transition: color 0.2s;
+    }
+
+    .burst-btn.active .burst-text {
+      color: var(--burst-active);
+    }
+
+    .burst-state {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--dim);
+      transition: color 0.2s;
+    }
+
+    .burst-btn.active .burst-state {
+      color: var(--burst-active);
+    }
+
+    /* ── FEEDBACK BAR ───────────────────────────────────────── */
+    .feedback {
+      padding: 10px 20px 20px;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--dim);
+      text-align: center;
+      flex-shrink: 0;
+      min-height: 40px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── LOGIN VIEW ─────────────────────────────────────────── -->
+  <div id="login-view">
+    <div class="brand">
+      <div class="brand-eye"></div>
+      <h1>SHUTTER</h1>
+      <p>REMOTE TRIGGER CONTROLLER</p>
+    </div>
+
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="email" autocomplete="username" inputmode="email">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" autocomplete="current-password">
+    </div>
+    <button class="btn-login" onclick="login()">CONNECT</button>
+    <div class="login-msg info" id="login-msg"></div>
+  </div>
+
+  <!-- ── CONTROL VIEW ───────────────────────────────────────── -->
+  <div id="ctrl-view">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="conn-dot"></div>
+        <span class="topbar-title">SHUTTER</span>
+      </div>
+      <button class="logout-btn" onclick="logout()">DISCONNECT</button>
+    </div>
+
+    <div class="status-strip">
+      <span class="label">FIREBASE /status</span>
+      <span class="val off" id="db-val">— —</span>
+    </div>
+
+    <div class="controls">
+
+      <!-- Shutter -->
+      <div class="shutter-wrap">
+        <span class="shutter-label">Shutter</span>
+        <button class="shutter-btn" id="btn-shutter"
+          onmousedown="shutterDown()" onmouseup="shutterUp()" onmouseleave="shutterUp()"
+          ontouchstart="shutterDown(event)" ontouchend="shutterUp()">
+          <div class="shutter-icon"></div>
+          <span class="shutter-text">PRESS &amp; HOLD</span>
+        </button>
+      </div>
+
+      <!-- Burst -->
+      <div class="burst-wrap">
+        <span class="burst-label">Multi-Shot</span>
+        <button class="burst-btn" id="btn-burst" onclick="toggleBurst()">
+          <div class="burst-dots">
+            <div class="burst-dot"></div>
+            <div class="burst-dot"></div>
+            <div class="burst-dot"></div>
+          </div>
+          <span class="burst-text">BURST MODE</span>
+          <span class="burst-state" id="burst-state">TAP TO ENABLE</span>
+        </button>
+      </div>
+
+    </div>
+
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+</div>
+
+<script type="module">
+  import { initializeApp }                                      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getDatabase, ref, set, onValue }                    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // ── CONFIG ────────────────────────────────────────────────────────────────
+  const firebaseConfig = {
+    apiKey:        "AIzaSyBmwdVONuWlTSBm29Dx9a9J7xg2KeB1L1M",            // <-- fill in
+    authDomain:    "esp32-5ae48.firebaseapp.com",
+    databaseURL:   "https://esp32-5ae48-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId:     "esp32-5ae48",
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const app       = initializeApp(firebaseConfig);
+  const auth      = getAuth(app);
+  const db        = getDatabase(app);
+  const statusRef = ref(db, "status");
+
+  let burstOn      = false;
+  let shutterHeld  = false;
+
+  // ── AUTH ──────────────────────────────────────────────────────────────────
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      document.getElementById("login-view").style.display = "none";
+      document.getElementById("ctrl-view").style.display  = "flex";
+      listenStatus();
+    } else {
+      document.getElementById("login-view").style.display = "flex";
+      document.getElementById("ctrl-view").style.display  = "none";
+    }
+  });
+
+  function listenStatus() {
+    onValue(statusRef, snap => {
+      const v   = snap.val();
+      const el  = document.getElementById("db-val");
+      el.textContent = v === 1 ? "1  ●  ACTIVE" : "0  ○  IDLE";
+      el.className   = "val " + (v === 1 ? "on" : "off");
+    });
+  }
+
+  // ── LOGIN ─────────────────────────────────────────────────────────────────
+  window.login = async function() {
+    const email = document.getElementById("email").value.trim();
+    const pass  = document.getElementById("password").value;
+    const msg   = document.getElementById("login-msg");
+    msg.className = "login-msg info";
+    msg.textContent = "CONNECTING...";
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch(e) {
+      msg.className   = "login-msg error";
+      msg.textContent = e.code.replace("auth/", "").replaceAll("-", " ").toUpperCase();
+    }
+  };
+
+  // ── LOGOUT ────────────────────────────────────────────────────────────────
+  window.logout = async function() {
+    burstOn = false;
+    shutterHeld = false;
+    await set(statusRef, 0);
+    await signOut(auth);
+  };
+
+  // ── SHUTTER (hold-to-fire) ────────────────────────────────────────────────
+  window.shutterDown = function(e) {
+    if (e) e.preventDefault();
+    if (burstOn) return;          // blocked while burst is active
+    if (shutterHeld) return;
+    shutterHeld = true;
+    document.getElementById("btn-shutter").classList.add("firing");
+    document.getElementById("btn-burst").classList.add("disabled");
+    set(statusRef, 1);
+    fb("SHUTTER OPEN");
+  };
+
+  window.shutterUp = function() {
+    if (!shutterHeld) return;
+    shutterHeld = false;
+    document.getElementById("btn-shutter").classList.remove("firing");
+    document.getElementById("btn-burst").classList.remove("disabled");
+    set(statusRef, 0);
+    fb("SHUTTER CLOSED");
+  };
+
+  // ── BURST (toggle) ────────────────────────────────────────────────────────
+  window.toggleBurst = function() {
+    if (shutterHeld) return;       // blocked while shutter is held
+    burstOn = !burstOn;
+    const btn   = document.getElementById("btn-burst");
+    const state = document.getElementById("burst-state");
+    const sBtn  = document.getElementById("btn-shutter");
+    if (burstOn) {
+      btn.classList.add("active");
+      btn.classList.remove("disabled");
+      sBtn.classList.add("disabled");
+      state.textContent = "RUNNING — TAP TO STOP";
+      set(statusRef, 1);
+      fb("BURST MODE ON");
+    } else {
+      btn.classList.remove("active");
+      sBtn.classList.remove("disabled");
+      state.textContent = "TAP TO ENABLE";
+      set(statusRef, 0);
+      fb("BURST MODE OFF");
+    }
+  };
+
+  // ── FEEDBACK ──────────────────────────────────────────────────────────────
+  let fbTimer;
+  function fb(msg) {
+    const el = document.getElementById("feedback");
+    el.textContent = msg;
+    clearTimeout(fbTimer);
+    fbTimer = setTimeout(() => { el.textContent = ""; }, 2000);
+  }
+
+  // Enter to login
+  document.getElementById("password").addEventListener("keydown", e => {
+    if (e.key === "Enter") window.login();
+  });
+  document.getElementById("email").addEventListener("keydown", e => {
+    if (e.key === "Enter") document.getElementById("password").focus();
+  });
+</script>
+</body>
+</html>
